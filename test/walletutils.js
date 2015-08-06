@@ -646,5 +646,29 @@ describe('WalletUtils', function() {
       });
     });
   });
+  describe('#verifyRequestPubKey', function() {
+    it('should generate and check request pub key', function() {
+      var reqPubKey = (new Bitcore.PrivateKey).toPublicKey();
+      var xPrivKey = new Bitcore.HDPrivateKey();
+      var xPubKey = new Bitcore.HDPublicKey(xPrivKey);
+
+
+      var sig = WalletUtils.signRequestPubKey(reqPubKey.toString(), xPrivKey);
+      var valid = WalletUtils.verifyRequestPubKey(reqPubKey.toString(), sig, xPubKey);
+      valid.should.be.equal(true);
+    });
+    it('should fail to check a request pub key with wrong key', function() {
+      var reqPubKey = '02c2c1c6e75cfc50235ff4a2eb848385c2871b8c94e285ee82eaced1dcd5dd568e';
+      var xPrivKey = new Bitcore.HDPrivateKey();
+      var xPubKey = new Bitcore.HDPublicKey(xPrivKey);
+      var sig = WalletUtils.signRequestPubKey(reqPubKey, xPrivKey);
+
+      var xPrivKey2 = new Bitcore.HDPrivateKey();
+      var xPubKey2 = new Bitcore.HDPublicKey(xPrivKey2);
+      var valid = WalletUtils.verifyRequestPubKey(reqPubKey, sig, xPubKey2);
+      valid.should.be.equal(false);
+    });
+ 
+  });
 
 });
