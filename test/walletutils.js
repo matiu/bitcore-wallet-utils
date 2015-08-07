@@ -29,7 +29,7 @@ helpers.strip = function(number) {
   return (parseFloat(number.toPrecision(12)));
 }
 
-// Amounts in satoshis 
+// Amounts in satoshis
 helpers.generateUtxos = function(publicKeyRing, path, requiredSignatures, amounts) {
   var amounts = [].concat(amounts);
   var utxos = _.map(amounts, function(amount, i) {
@@ -387,6 +387,107 @@ describe('WalletUtils', function() {
       });
       should.not.exist(bitcoreError);
     });
+
+    it('should build a tx with provided output scripts', function() {
+      var hdPrivateKey = new Bitcore.HDPrivateKey('tprv8ZgxMBicQKsPdPLE72pfSo7CvzTsWddGHdwSuMNrcerr8yQZKdaPXiRtP9Ew8ueSe9M7jS6RJsp4DiAVS2xmyxcCC9kZV6X1FMsX7EQX2R5');
+      var derivedPrivateKey = hdPrivateKey.derive(WalletUtils.PATHS.BASE_ADDRESS_DERIVATION);
+
+      var toAddress = 'msj42CCGruhRsFrGATiUuh25dtxYtnpbTx';
+      var changeAddress = 'msj42CCGruhRsFrGATiUuh25dtxYtnpbTx';
+
+      var publicKeyRing = [{
+        xPubKey: new Bitcore.HDPublicKey(derivedPrivateKey)
+      }];
+
+      var utxos = helpers.generateUtxos(publicKeyRing, 'm/1/0', 1, [0.001]);
+      var txp = {
+        inputs: utxos,
+        type: 'external',
+        outputs: [
+          {
+            "amount":700,
+            "script":"512103ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff210314a96cd6f5a20826070173fe5b7e9797f21fc8ca4a55bcb2d2bde99f55dd352352ae"
+          },
+          {
+            "amount":600,
+            "script":"76a9144d5bd54809f846dc6b1a14cbdd0ac87a3c66f76688ac"
+          },
+          {
+            "amount":0,
+            "script":"6a1e43430102fa9213bc243af03857d0f9165e971153586d3915201201201210"
+          }
+        ],
+        changeAddress: {
+          address: changeAddress
+        },
+        requiredSignatures: 1,
+        outputOrder: [0, 1, 2, 3],
+        fee: 10000,
+      };
+      var t = WalletUtils.buildTx(txp);
+      var bitcoreError = t.getSerializationError({
+        disableIsFullySigned: true,
+      });
+      should.not.exist(bitcoreError);
+      t.outputs.length.should.equal(4);
+      t.outputs[0].script.toHex().should.equal(txp.outputs[0].script);
+      t.outputs[0].satoshis.should.equal(txp.outputs[0].amount);
+      t.outputs[1].script.toHex().should.equal(txp.outputs[1].script);
+      t.outputs[1].satoshis.should.equal(txp.outputs[1].amount);
+      t.outputs[2].script.toHex().should.equal(txp.outputs[2].script);
+      t.outputs[2].satoshis.should.equal(txp.outputs[2].amount);
+      var changeScript = Bitcore.Script.fromAddress(txp.changeAddress.address).toHex();
+      t.outputs[3].script.toHex().should.equal(changeScript);
+    });
+    it('should fail if provided output has both toAddress and script', function() {
+      var hdPrivateKey = new Bitcore.HDPrivateKey('tprv8ZgxMBicQKsPdPLE72pfSo7CvzTsWddGHdwSuMNrcerr8yQZKdaPXiRtP9Ew8ueSe9M7jS6RJsp4DiAVS2xmyxcCC9kZV6X1FMsX7EQX2R5');
+      var derivedPrivateKey = hdPrivateKey.derive(WalletUtils.PATHS.BASE_ADDRESS_DERIVATION);
+
+      var toAddress = 'msj42CCGruhRsFrGATiUuh25dtxYtnpbTx';
+      var changeAddress = 'msj42CCGruhRsFrGATiUuh25dtxYtnpbTx';
+
+      var publicKeyRing = [{
+        xPubKey: new Bitcore.HDPublicKey(derivedPrivateKey)
+      }];
+
+      var utxos = helpers.generateUtxos(publicKeyRing, 'm/1/0', 1, [0.001]);
+      var txp = {
+        inputs: utxos,
+        type: 'external',
+        outputs: [
+          {
+            "toAddress":"18433T2TSgajt9jWhcTBw4GoNREA6LpX3E",
+            "amount":700,
+            "script":"512103ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff210314a96cd6f5a20826070173fe5b7e9797f21fc8ca4a55bcb2d2bde99f55dd352352ae"
+          },
+          {
+            "amount":600,
+            "script":"76a9144d5bd54809f846dc6b1a14cbdd0ac87a3c66f76688ac"
+          },
+          {
+            "amount":0,
+            "script":"6a1e43430102fa9213bc243af03857d0f9165e971153586d3915201201201210"
+          }
+        ],
+        changeAddress: {
+          address: changeAddress
+        },
+        requiredSignatures: 1,
+        outputOrder: [0, 1, 2, 3],
+        fee: 10000,
+      };
+      (function() {
+        var t = WalletUtils.buildTx(txp);
+      }).should.throw('Output should have either toAddress or script specified');
+
+      delete txp.outputs[0].toAddress;
+      var t = WalletUtils.buildTx(txp);
+      var bitcoreError = t.getSerializationError({
+        disableIsFullySigned: true,
+      });
+      should.not.exist(bitcoreError);
+    });
+
   });
 
   describe('#signTxp', function() {
@@ -447,6 +548,45 @@ describe('WalletUtils', function() {
         },
         requiredSignatures: 1,
         outputOrder: [0, 1, 2],
+        fee: 10000,
+      };
+      var signatures = WalletUtils.signTxp(txp, hdPrivateKey);
+      signatures.length.should.be.equal(utxos.length);
+    });
+    it('should sign proposal with provided output scripts correctly', function() {
+      var hdPrivateKey = new Bitcore.HDPrivateKey('tprv8ZgxMBicQKsPdPLE72pfSo7CvzTsWddGHdwSuMNrcerr8yQZKdaPXiRtP9Ew8ueSe9M7jS6RJsp4DiAVS2xmyxcCC9kZV6X1FMsX7EQX2R5');
+      var derivedPrivateKey = hdPrivateKey.derive(WalletUtils.PATHS.BASE_ADDRESS_DERIVATION);
+
+      var toAddress = 'msj42CCGruhRsFrGATiUuh25dtxYtnpbTx';
+      var changeAddress = 'msj42CCGruhRsFrGATiUuh25dtxYtnpbTx';
+
+      var publicKeyRing = [{
+        xPubKey: new Bitcore.HDPublicKey(derivedPrivateKey)
+      }];
+
+      var utxos = helpers.generateUtxos(publicKeyRing, 'm/1/0', 1, [0.001]);
+      var txp = {
+        inputs: utxos,
+        type: 'external',
+        outputs: [
+          {
+            "amount":700,
+            "script":"512103ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff210314a96cd6f5a20826070173fe5b7e9797f21fc8ca4a55bcb2d2bde99f55dd352352ae"
+          },
+          {
+            "amount":600,
+            "script":"76a9144d5bd54809f846dc6b1a14cbdd0ac87a3c66f76688ac"
+          },
+          {
+            "amount":0,
+            "script":"6a1e43430102fa9213bc243af03857d0f9165e971153586d3915201201201210"
+          }
+        ],
+        changeAddress: {
+          address: changeAddress
+        },
+        requiredSignatures: 1,
+        outputOrder: [0, 1, 2, 3],
         fee: 10000,
       };
       var signatures = WalletUtils.signTxp(txp, hdPrivateKey);
