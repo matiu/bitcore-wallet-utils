@@ -405,11 +405,11 @@ describe('WalletUtils', function() {
         type: 'external',
         outputs: [
           {
+            "toAddress":"18433T2TSgajt9jWhcTBw4GoNREA6LpX3E",
             "amount":700,
             "script":"512103ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff210314a96cd6f5a20826070173fe5b7e9797f21fc8ca4a55bcb2d2bde99f55dd352352ae"
           },
           {
-            "toAddress":"18433T2TSgajt9jWhcTBw4GoNREA6LpX3E",
             "amount":600,
             "script":"76a9144d5bd54809f846dc6b1a14cbdd0ac87a3c66f76688ac"
           },
@@ -430,6 +430,15 @@ describe('WalletUtils', function() {
         disableIsFullySigned: true,
       });
       should.not.exist(bitcoreError);
+      t.outputs.length.should.equal(4);
+      t.outputs[0].script.toHex().should.equal(txp.outputs[0].script);
+      t.outputs[0].satoshis.should.equal(txp.outputs[0].amount);
+      t.outputs[1].script.toHex().should.equal(txp.outputs[1].script);
+      t.outputs[1].satoshis.should.equal(txp.outputs[1].amount);
+      t.outputs[2].script.toHex().should.equal(txp.outputs[2].script);
+      t.outputs[2].satoshis.should.equal(txp.outputs[2].amount);
+      var changeScript = Bitcore.Script.fromAddress(txp.changeAddress.address).toHex();
+      t.outputs[3].script.toHex().should.equal(changeScript);
     });
 
   });
