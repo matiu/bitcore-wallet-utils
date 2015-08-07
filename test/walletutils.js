@@ -405,7 +405,6 @@ describe('WalletUtils', function() {
         type: 'external',
         outputs: [
           {
-            "toAddress":"18433T2TSgajt9jWhcTBw4GoNREA6LpX3E",
             "amount":700,
             "script":"512103ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff210314a96cd6f5a20826070173fe5b7e9797f21fc8ca4a55bcb2d2bde99f55dd352352ae"
           },
@@ -439,6 +438,54 @@ describe('WalletUtils', function() {
       t.outputs[2].satoshis.should.equal(txp.outputs[2].amount);
       var changeScript = Bitcore.Script.fromAddress(txp.changeAddress.address).toHex();
       t.outputs[3].script.toHex().should.equal(changeScript);
+    });
+    it('should fail if provided output has both toAddress and script', function() {
+      var hdPrivateKey = new Bitcore.HDPrivateKey('tprv8ZgxMBicQKsPdPLE72pfSo7CvzTsWddGHdwSuMNrcerr8yQZKdaPXiRtP9Ew8ueSe9M7jS6RJsp4DiAVS2xmyxcCC9kZV6X1FMsX7EQX2R5');
+      var derivedPrivateKey = hdPrivateKey.derive(WalletUtils.PATHS.BASE_ADDRESS_DERIVATION);
+
+      var toAddress = 'msj42CCGruhRsFrGATiUuh25dtxYtnpbTx';
+      var changeAddress = 'msj42CCGruhRsFrGATiUuh25dtxYtnpbTx';
+
+      var publicKeyRing = [{
+        xPubKey: new Bitcore.HDPublicKey(derivedPrivateKey)
+      }];
+
+      var utxos = helpers.generateUtxos(publicKeyRing, 'm/1/0', 1, [0.001]);
+      var txp = {
+        inputs: utxos,
+        type: 'external',
+        outputs: [
+          {
+            "toAddress":"18433T2TSgajt9jWhcTBw4GoNREA6LpX3E",
+            "amount":700,
+            "script":"512103ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff210314a96cd6f5a20826070173fe5b7e9797f21fc8ca4a55bcb2d2bde99f55dd352352ae"
+          },
+          {
+            "amount":600,
+            "script":"76a9144d5bd54809f846dc6b1a14cbdd0ac87a3c66f76688ac"
+          },
+          {
+            "amount":0,
+            "script":"6a1e43430102fa9213bc243af03857d0f9165e971153586d3915201201201210"
+          }
+        ],
+        changeAddress: {
+          address: changeAddress
+        },
+        requiredSignatures: 1,
+        outputOrder: [0, 1, 2, 3],
+        fee: 10000,
+      };
+      (function() {
+        var t = WalletUtils.buildTx(txp);
+      }).should.throw('Output should have either toAddress or script specified');
+
+      delete txp.outputs[0].toAddress;
+      var t = WalletUtils.buildTx(txp);
+      var bitcoreError = t.getSerializationError({
+        disableIsFullySigned: true,
+      });
+      should.not.exist(bitcoreError);
     });
 
   });
@@ -527,7 +574,6 @@ describe('WalletUtils', function() {
             "script":"512103ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff210314a96cd6f5a20826070173fe5b7e9797f21fc8ca4a55bcb2d2bde99f55dd352352ae"
           },
           {
-            "toAddress":"18433T2TSgajt9jWhcTBw4GoNREA6LpX3E",
             "amount":600,
             "script":"76a9144d5bd54809f846dc6b1a14cbdd0ac87a3c66f76688ac"
           },
