@@ -235,6 +235,32 @@ describe('WalletUtils', function() {
     });
   });
 
+
+  describe('#publicKeyToAESKey', function() {
+    it('should be ok', function() {
+      var pub = (new Bitcore.PrivateKey(aPrivKey)).toPublicKey().toString();
+      WalletUtils.publicKeyToAESKey(pub).should.be.equal('BSs/jQwO+HQiivewrBfc4A==');
+    });
+
+    it('should fail if pk has invalid values', function() {
+      var values = [
+        null,
+        123,
+        '123',
+      ];
+      _.each(values, function(value) {
+        var valid = true;
+        try {
+          WalletUtils.publicKeyToAESKey(value);
+        } catch (e) {
+          valid = false;
+        }
+        valid.should.be.false;
+      });
+    });
+  });
+
+
   describe('#buildTx', function() {
     it('should build a tx correctly', function() {
       var hdPrivateKey = new Bitcore.HDPrivateKey('tprv8ZgxMBicQKsPdPLE72pfSo7CvzTsWddGHdwSuMNrcerr8yQZKdaPXiRtP9Ew8ueSe9M7jS6RJsp4DiAVS2xmyxcCC9kZV6X1FMsX7EQX2R5');
