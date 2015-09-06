@@ -15,6 +15,12 @@ var aSignature = '3045022100d6186930e4cd9984e3168e15535e2297988555838ad10126d6c2
 
 var otherPubKey = '02555a2d45e309c00cc8c5090b6ec533c6880ab2d3bc970b3943def989b3373f16';
 
+var masterPrivateKey = 'tprv8ZgxMBicQKsPdPLE72pfSo7CvzTsWddGHdwSuMNrcerr8yQZKdaPXiRtP9Ew8ueSe9M7jS6RJsp4DiAVS2xmyxcCC9kZV6X1FMsX7EQX2R5';
+var derivedPrivateKey = {
+  'BIP44': WalletUtils.deriveXPrivFromMaster(masterPrivateKey, 'BIP44', 'testnet'),
+  'BIP45': WalletUtils.deriveXPrivFromMaster(masterPrivateKey, 'BIP45', 'testnet'),
+};
+
 var helpers = {};
 
 helpers.toSatoshi = function(btc) {
@@ -30,20 +36,31 @@ helpers.strip = function(number) {
 }
 
 // Amounts in satoshis
-helpers.generateUtxos = function(publicKeyRing, path, requiredSignatures, amounts) {
+helpers.generateUtxos = function(scriptType, publicKeyRing, path, requiredSignatures, amounts) {
   var amounts = [].concat(amounts);
   var utxos = _.map(amounts, function(amount, i) {
 
-    var address = WalletUtils.deriveAddress(publicKeyRing, path, requiredSignatures, 'testnet');
+    var address = WalletUtils.deriveAddress(scriptType, publicKeyRing, path, requiredSignatures, 'testnet');
+
+    var scriptPubKey;
+    switch (scriptType) {
+      case WalletUtils.SCRIPT_TYPES.P2SH:
+        scriptPubKey = Bitcore.Script.buildMultisigOut(address.publicKeys, requiredSignatures).toScriptHashOut();
+        break;
+      case WalletUtils.SCRIPT_TYPES.P2PKH:
+        scriptPubKey = Bitcore.Script.buildPublicKeyHashOut(address.address);
+        break;
+    }
+    should.exist(scriptPubKey);
 
     var obj = {
       txid: Bitcore.crypto.Hash.sha256(new Buffer(i)).toString('hex'),
       vout: 100,
       satoshis: helpers.toSatoshi(amount),
-      scriptPubKey: Bitcore.Script.buildMultisigOut(address.publicKeys, requiredSignatures).toScriptHashOut().toBuffer().toString('hex'),
+      scriptPubKey: scriptPubKey.toBuffer().toString('hex'),
       address: address.address,
       path: path,
-      publicKeys: address.publicKeys
+      publicKeys: address.publicKeys,
     };
     return obj;
   });
@@ -255,20 +272,15 @@ describe('WalletUtils', function() {
   });
 
   describe('#buildTx', function() {
-    var masterPrivateKey, derivedPrivateKey;
-    beforeEach(function() {
-      masterPrivateKey = 'tprv8ZgxMBicQKsPdPLE72pfSo7CvzTsWddGHdwSuMNrcerr8yQZKdaPXiRtP9Ew8ueSe9M7jS6RJsp4DiAVS2xmyxcCC9kZV6X1FMsX7EQX2R5';
-      derivedPrivateKey = WalletUtils.deriveXPrivFromMaster(masterPrivateKey, 'BIP45', 'testnet');
-    });
     it('should build a tx correctly', function() {
       var toAddress = 'msj42CCGruhRsFrGATiUuh25dtxYtnpbTx';
       var changeAddress = 'msj42CCGruhRsFrGATiUuh25dtxYtnpbTx';
 
       var publicKeyRing = [{
-        xPubKey: new Bitcore.HDPublicKey(derivedPrivateKey)
+        xPubKey: new Bitcore.HDPublicKey(derivedPrivateKey['BIP44']),
       }];
 
-      var utxos = helpers.generateUtxos(publicKeyRing, 'm/1/0', 1, [1000, 2000]);
+      var utxos = helpers.generateUtxos('P2PKH', publicKeyRing, 'm/1/0', 1, [1000, 2000]);
       var txp = {
         version: '2.0.0',
         inputs: utxos,
@@ -280,7 +292,8 @@ describe('WalletUtils', function() {
         requiredSignatures: 1,
         outputOrder: [0, 1],
         fee: 10050,
-        derivationStrategy: 'BIP45',
+        derivationStrategy: 'BIP44',
+        addressType: 'P2PKH',
       };
       var t = WalletUtils.buildTx(txp);
       var bitcoreError = t.getSerializationError({
@@ -297,10 +310,10 @@ describe('WalletUtils', function() {
       var changeAddress = 'msj42CCGruhRsFrGATiUuh25dtxYtnpbTx';
 
       var publicKeyRing = [{
-        xPubKey: new Bitcore.HDPublicKey(derivedPrivateKey)
+        xPubKey: new Bitcore.HDPublicKey(derivedPrivateKey['BIP45']),
       }];
 
-      var utxos = helpers.generateUtxos(publicKeyRing, 'm/1/0', 1, [1000, 2000]);
+      var utxos = helpers.generateUtxos('P2SH', publicKeyRing, 'm/2147483647/0/0', 1, [1000, 2000]);
       var txp = {
         version: '1.0.1',
         inputs: utxos,
@@ -314,6 +327,7 @@ describe('WalletUtils', function() {
         feePerKb: 40000,
         fee: 10050,
         derivationStrategy: 'BIP45',
+        addressType: 'P2SH',
       };
       var t = WalletUtils.buildTx(txp);
       var bitcoreError = t.getSerializationError({
@@ -330,10 +344,10 @@ describe('WalletUtils', function() {
       var changeAddress = 'msj42CCGruhRsFrGATiUuh25dtxYtnpbTx';
 
       var publicKeyRing = [{
-        xPubKey: new Bitcore.HDPublicKey(derivedPrivateKey)
+        xPubKey: new Bitcore.HDPublicKey(derivedPrivateKey['BIP44']),
       }];
 
-      var utxos = helpers.generateUtxos(publicKeyRing, 'm/1/0', 1, [1, 2]);
+      var utxos = helpers.generateUtxos('P2PKH', publicKeyRing, 'm/1/0', 1, [1, 2]);
       var txp = {
         inputs: utxos,
         toAddress: toAddress,
@@ -344,7 +358,8 @@ describe('WalletUtils', function() {
         requiredSignatures: 1,
         outputOrder: [0, 1],
         fee: 1.5e8,
-        derivationStrategy: 'BIP45',
+        derivationStrategy: 'BIP44',
+        addressType: 'P2PKH',
       };
 
       var x = WalletUtils.newBitcoreTransaction;
@@ -372,10 +387,10 @@ describe('WalletUtils', function() {
       var changeAddress = 'msj42CCGruhRsFrGATiUuh25dtxYtnpbTx';
 
       var publicKeyRing = [{
-        xPubKey: new Bitcore.HDPublicKey(derivedPrivateKey)
+        xPubKey: new Bitcore.HDPublicKey(derivedPrivateKey['BIP44']),
       }];
 
-      var utxos = helpers.generateUtxos(publicKeyRing, 'm/1/0', 1, [1000, 2000]);
+      var utxos = helpers.generateUtxos('P2PKH', publicKeyRing, 'm/1/0', 1, [1000, 2000]);
       var txp = {
         inputs: utxos,
         type: 'multiple_outputs',
@@ -394,7 +409,8 @@ describe('WalletUtils', function() {
         requiredSignatures: 1,
         outputOrder: [0, 1, 2],
         fee: 10000,
-        derivationStrategy: 'BIP45',
+        derivationStrategy: 'BIP44',
+        addressType: 'P2PKH',
       };
       var t = WalletUtils.buildTx(txp);
       var bitcoreError = t.getSerializationError({
@@ -408,10 +424,10 @@ describe('WalletUtils', function() {
       var changeAddress = 'msj42CCGruhRsFrGATiUuh25dtxYtnpbTx';
 
       var publicKeyRing = [{
-        xPubKey: new Bitcore.HDPublicKey(derivedPrivateKey)
+        xPubKey: new Bitcore.HDPublicKey(derivedPrivateKey['BIP44']),
       }];
 
-      var utxos = helpers.generateUtxos(publicKeyRing, 'm/1/0', 1, [0.001]);
+      var utxos = helpers.generateUtxos('P2PKH', publicKeyRing, 'm/1/0', 1, [0.001]);
       var txp = {
         inputs: utxos,
         type: 'external',
@@ -431,7 +447,8 @@ describe('WalletUtils', function() {
         requiredSignatures: 1,
         outputOrder: [0, 1, 2, 3],
         fee: 10000,
-        derivationStrategy: 'BIP45',
+        derivationStrategy: 'BIP44',
+        addressType: 'P2PKH',
       };
       var t = WalletUtils.buildTx(txp);
       var bitcoreError = t.getSerializationError({
@@ -453,10 +470,10 @@ describe('WalletUtils', function() {
       var changeAddress = 'msj42CCGruhRsFrGATiUuh25dtxYtnpbTx';
 
       var publicKeyRing = [{
-        xPubKey: new Bitcore.HDPublicKey(derivedPrivateKey)
+        xPubKey: new Bitcore.HDPublicKey(derivedPrivateKey['BIP44']),
       }];
 
-      var utxos = helpers.generateUtxos(publicKeyRing, 'm/1/0', 1, [0.001]);
+      var utxos = helpers.generateUtxos('P2PKH', publicKeyRing, 'm/1/0', 1, [0.001]);
       var txp = {
         inputs: utxos,
         type: 'external',
@@ -477,7 +494,8 @@ describe('WalletUtils', function() {
         requiredSignatures: 1,
         outputOrder: [0, 1, 2, 3],
         fee: 10000,
-        derivationStrategy: 'BIP45',
+        derivationStrategy: 'BIP44',
+        addressType: 'P2PKH',
       };
       (function() {
         var t = WalletUtils.buildTx(txp);
@@ -493,21 +511,15 @@ describe('WalletUtils', function() {
   });
 
   describe('#signTxp', function() {
-    var masterPrivateKey, derivedPrivateKey;
-    beforeEach(function() {
-      masterPrivateKey = 'tprv8ZgxMBicQKsPdPLE72pfSo7CvzTsWddGHdwSuMNrcerr8yQZKdaPXiRtP9Ew8ueSe9M7jS6RJsp4DiAVS2xmyxcCC9kZV6X1FMsX7EQX2R5';
-      derivedPrivateKey = WalletUtils.deriveXPrivFromMaster(masterPrivateKey, 'BIP45', 'testnet');
-    });
-    it('should sign correctly', function() {
+    it('should sign BIP45 P2SH correctly', function() {
       var toAddress = 'msj42CCGruhRsFrGATiUuh25dtxYtnpbTx';
       var changeAddress = 'msj42CCGruhRsFrGATiUuh25dtxYtnpbTx';
 
       var publicKeyRing = [{
-        xPubKey: new Bitcore.HDPublicKey(derivedPrivateKey)
+        xPubKey: new Bitcore.HDPublicKey(derivedPrivateKey['BIP45']),
       }];
 
-      var path = 'm/1/0';
-      var utxos = helpers.generateUtxos(publicKeyRing, path, 1, [1000, 2000]);
+      var utxos = helpers.generateUtxos('P2SH', publicKeyRing, 'm/2147483647/0/0', 1, [1000, 2000]);
       var txp = {
         inputs: utxos,
         toAddress: toAddress,
@@ -519,23 +531,20 @@ describe('WalletUtils', function() {
         outputOrder: [0, 1],
         fee: 10000,
         derivationStrategy: 'BIP45',
+        addressType: 'P2SH',
       };
       var signatures = WalletUtils.signTxp(txp, masterPrivateKey);
       signatures.length.should.be.equal(utxos.length);
     });
-    it('should sign BIP44 proposal correctly', function() {
-      masterPrivateKey = 'tprv8ZgxMBicQKsPdPLE72pfSo7CvzTsWddGHdwSuMNrcerr8yQZKdaPXiRtP9Ew8ueSe9M7jS6RJsp4DiAVS2xmyxcCC9kZV6X1FMsX7EQX2R5';
-      derivedPrivateKey = WalletUtils.deriveXPrivFromMaster(masterPrivateKey, 'BIP44', 'testnet');
-
+    it('should sign BIP44 P2PKH correctly', function() {
       var toAddress = 'msj42CCGruhRsFrGATiUuh25dtxYtnpbTx';
       var changeAddress = 'msj42CCGruhRsFrGATiUuh25dtxYtnpbTx';
 
       var publicKeyRing = [{
-        xPubKey: new Bitcore.HDPublicKey(derivedPrivateKey)
+        xPubKey: new Bitcore.HDPublicKey(derivedPrivateKey['BIP44']),
       }];
 
-      var path = 'm/1/0';
-      var utxos = helpers.generateUtxos(publicKeyRing, path, 1, [1000, 2000]);
+      var utxos = helpers.generateUtxos('P2PKH', publicKeyRing, 'm/1/0', 1, [1000, 2000]);
       var txp = {
         inputs: utxos,
         toAddress: toAddress,
@@ -547,6 +556,7 @@ describe('WalletUtils', function() {
         outputOrder: [0, 1],
         fee: 10000,
         derivationStrategy: 'BIP44',
+        addressType: 'P2PKH',
       };
       var signatures = WalletUtils.signTxp(txp, masterPrivateKey);
       signatures.length.should.be.equal(utxos.length);
@@ -556,11 +566,10 @@ describe('WalletUtils', function() {
       var changeAddress = 'msj42CCGruhRsFrGATiUuh25dtxYtnpbTx';
 
       var publicKeyRing = [{
-        xPubKey: new Bitcore.HDPublicKey(derivedPrivateKey)
+        xPubKey: new Bitcore.HDPublicKey(derivedPrivateKey['BIP44']),
       }];
 
-      var path = 'm/1/0';
-      var utxos = helpers.generateUtxos(publicKeyRing, path, 1, [1000, 2000]);
+      var utxos = helpers.generateUtxos('P2PKH', publicKeyRing, 'm/1/0', 1, [1000, 2000]);
       var txp = {
         inputs: utxos,
         type: 'multiple_outputs',
@@ -579,7 +588,8 @@ describe('WalletUtils', function() {
         requiredSignatures: 1,
         outputOrder: [0, 1, 2],
         fee: 10000,
-        derivationStrategy: 'BIP45',
+        derivationStrategy: 'BIP44',
+        addressType: 'P2PKH',
       };
       var signatures = WalletUtils.signTxp(txp, masterPrivateKey);
       signatures.length.should.be.equal(utxos.length);
@@ -589,10 +599,10 @@ describe('WalletUtils', function() {
       var changeAddress = 'msj42CCGruhRsFrGATiUuh25dtxYtnpbTx';
 
       var publicKeyRing = [{
-        xPubKey: new Bitcore.HDPublicKey(derivedPrivateKey)
+        xPubKey: new Bitcore.HDPublicKey(derivedPrivateKey['BIP44']),
       }];
 
-      var utxos = helpers.generateUtxos(publicKeyRing, 'm/1/0', 1, [0.001]);
+      var utxos = helpers.generateUtxos('P2PKH', publicKeyRing, 'm/1/0', 1, [0.001]);
       var txp = {
         inputs: utxos,
         type: 'external',
@@ -612,7 +622,8 @@ describe('WalletUtils', function() {
         requiredSignatures: 1,
         outputOrder: [0, 1, 2, 3],
         fee: 10000,
-        derivationStrategy: 'BIP45',
+        derivationStrategy: 'BIP44',
+        addressType: 'P2PKH',
       };
       var signatures = WalletUtils.signTxp(txp, masterPrivateKey);
       signatures.length.should.be.equal(utxos.length);
