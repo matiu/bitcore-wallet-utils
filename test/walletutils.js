@@ -215,19 +215,19 @@ describe('WalletUtils', function() {
     });
   });
 
-  describe('#getNetworkFromXPubKey', function() {
+  describe('#getNetworkFromExtendedKey', function() {
     it('should check correctly', function() {
       var result;
 
       var xPrivKeyLivenet = (new Bitcore.HDPrivateKey('livenet')).toString();
+      WalletUtils.getNetworkFromExtendedKey(xPrivKeyLivenet).should.be.equal('livenet');
       var xPubKeyLivenet = new Bitcore.HDPublicKey(xPrivKeyLivenet).toString();
-      result = WalletUtils.getNetworkFromXPubKey(xPubKeyLivenet);
-      result.should.be.equal('livenet');
+      WalletUtils.getNetworkFromExtendedKey(xPubKeyLivenet).should.be.equal('livenet');
 
       var xPrivKeyTestnet = (new Bitcore.HDPrivateKey('testnet')).toString();
+      WalletUtils.getNetworkFromExtendedKey(xPrivKeyTestnet).should.be.equal('testnet');
       var xPubKeyTestnet = new Bitcore.HDPublicKey(xPrivKeyTestnet).toString();
-      result = WalletUtils.getNetworkFromXPubKey(xPubKeyTestnet);
-      result.should.be.equal('testnet');
+      WalletUtils.getNetworkFromExtendedKey(xPubKeyTestnet).should.be.equal('testnet');
 
     });
     it('should fail if argument is null or undefined', function() {
@@ -238,7 +238,7 @@ describe('WalletUtils', function() {
       _.each(values, function(value) {
         var valid = true;
         try {
-          WalletUtils.getNetworkFromXPubKey(value);
+          WalletUtils.getNetworkFromExtendedKey(value);
         } catch (e) {
           valid = false;
         }
