@@ -112,6 +112,37 @@ describe('WalletUtils', function() {
     });
   });
 
+  describe('#getBaseAddressDerivationPath', function() {
+    describe('BIP45', function() {
+      it('should return path', function() {
+        WalletUtils.getBaseAddressDerivationPath('BIP45').should.equal("m/45'");
+      });
+    });
+    describe('BIP44', function() {
+      it('should return path for livenet, account 0', function() {
+        WalletUtils.getBaseAddressDerivationPath('BIP44', 'livenet', 0).should.equal("m/44'/0'/0'");
+      });
+      it('should return path for testnet, account 2', function() {
+        WalletUtils.getBaseAddressDerivationPath('BIP44', 'testnet', 2).should.equal("m/44'/1'/2'");
+      });
+      it('should fail on incorrect network', function() {
+        (function() {
+          WalletUtils.getBaseAddressDerivationPath('BIP44', 'fakenet');
+        }).should.throw;
+      });
+      it('should fail on incorrect account', function() {
+        (function() {
+          WalletUtils.getBaseAddressDerivationPath('BIP44', 'livenet', 'dummy');
+        }).should.throw;
+      });
+    });
+    it('should fail on incorrect derivationStrategy', function() {
+      (function() {
+        WalletUtils.getBaseAddressDerivationPath('BIP123');
+      }).should.throw;
+    });
+  });
+
   describe('#deriveXPrivFromMaster', function() {
     it('should derive BIP45 livenet', function() {
       var xpriv = WalletUtils.deriveXPrivFromMaster('xprv9s21ZrQH143K3zLpjtB4J4yrRfDTEfbrMa9vLZaTAv5BzASwBmA16mdBmZKpMLssw1AzTnm31HAD2pk2bsnZ9dccxaLD48mRdhtw82XoiBi', 'BIP45', 'livenet').toString();
