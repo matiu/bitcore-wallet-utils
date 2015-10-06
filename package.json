@@ -2,7 +2,7 @@
   "name": "bitcore-wallet-utils",
   "description": "Common library for Bitcore Wallet Service and Client",
   "author": "BitPay Inc",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "main": "index.js",
   "keywords": [
     "bitcoin",
